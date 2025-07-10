@@ -2,15 +2,19 @@ import streamlit as st
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 import pandas as pd
+import os
+
 from gmail_service import search_zomato_emails, fetch_email_content
 from zomato_parser import parse_email
 from summary import generate_summary
+from storage import save_user_summary
 
+# --- Streamlit Setup ---
 st.set_page_config(page_title="Zomato Order Summary", layout="centered")
 st.title("🍽️ Zomato Order Summary")
 st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-# --- Secrets ---
+# --- OAuth Config ---
 CLIENT_CONFIG = {
     "web": {
         "client_id": st.secrets["gmail"]["client_id"],
@@ -22,17 +26,16 @@ CLIENT_CONFIG = {
 }
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-# --- Step 1: OAuth Login Instruction + Link ---
+# --- Show Login CTA ---
+st.markdown("**🔒 Log in with email linked to your Zomato account**")
 if "credentials" not in st.session_state:
-    st.markdown("**🔐 Please log in with the Gmail account linked to your Zomato orders.**")
     flow = Flow.from_client_config(
         client_config=CLIENT_CONFIG,
         scopes=SCOPES,
         redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
     )
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes='true')
-    st.link_button("Click here to log in with Gmail", auth_url)
-
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes="true")
+    st.markdown(f"[👉 Click here to log in with Gmail]({auth_url})")
     code = st.query_params.get("code")
     if code:
         try:
@@ -41,31 +44,34 @@ if "credentials" not in st.session_state:
             st.rerun()
         except Exception as e:
             st.error(f"OAuth Error: {e}")
-            st.stop()
     st.stop()
 
-# --- Step 2: Gmail Client ---
+# --- Authenticated: Ask User Details ---
+st.subheader("👤 Enter your details")
+with st.form("user_details_form"):
+    name = st.text_input("Your Name", "")
+    phone = st.text_input("Phone Number", "")
+    submitted = st.form_submit_button("Enter")
+
+if not submitted or not name.strip() or not phone.strip():
+    st.stop()
+
+# --- Gmail Service ---
 credentials = st.session_state["credentials"]
 service = build("gmail", "v1", credentials=credentials)
 
-# --- Step 3: Get User Info ---
-st.markdown("### 👤 Enter your details")
-user_name = st.text_input("Your Name")
-user_phone = st.text_input("Phone Number")
-
-if not user_name or not user_phone:
-    st.warning("Please enter your name and phone number before continuing.")
-    st.stop()
-
-# --- Step 4: Process Emails ---
+# --- Fetch Emails ---
 st.info("📩 Fetching your Zomato orders...")
 messages = search_zomato_emails(service)
 orders = []
+
 progress = st.progress(0)
 for i, msg_id in enumerate(messages):
     subject, body, received_date = fetch_email_content(service, msg_id)
     parsed = parse_email(body, received_date)
     if parsed:
+        parsed["name"] = name
+        parsed["phone"] = phone
         orders.append(parsed)
     progress.progress((i + 1) / len(messages))
 
@@ -73,14 +79,19 @@ if not orders:
     st.warning("No valid Zomato orders found.")
     st.stop()
 
-# --- Step 5: Display Summary First ---
+# --- Display Summary First ---
 df = pd.DataFrame(orders)
-st.success(f"✅ Found {len(df)} valid Zomato orders.")
+df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
+df["amount"] = df["amount"].astype(float)
 
-st.markdown("## 📊 Order Summary")
+st.success(f"✅ Found {len(df)} valid Zomato orders.")
+st.subheader("📊 Order Summary")
 summary_text = generate_summary(df)
 st.markdown(summary_text)
 
-# --- Step 6: Display Orders Table ---
-st.markdown("## 📄 Full Order History")
+# --- Store Summary ---
+save_user_summary(name, phone, summary_text)
+
+# --- Display DataFrame
+st.subheader("📦 Order Details")
 st.dataframe(df)

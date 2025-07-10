@@ -20,24 +20,27 @@ def search_zomato_emails(service):
 def fetch_email_content(service, msg_id):
     msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
     
-    # Get subject
-    headers = msg["payload"].get("headers", [])
+    payload = msg.get("payload", {})
+    headers = payload.get("headers", [])
     subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
     
-    # Get received date
-    internal_date = int(msg.get("internalDate", 0))
+    parts = payload.get("parts", [])
+    body = ""
+    if parts:
+        for part in parts:
+            if part.get("mimeType") == "text/html":
+                body = part["body"].get("data", "")
+                break
+    else:
+        body = payload.get("body", {}).get("data", "")
+    
+    # Decode the base64 content if available
+    import base64
+    if body:
+        body = base64.urlsafe_b64decode(body + "==").decode("utf-8", errors="ignore")
+    
+    # ✅ Fix: define internal_date before using it
+    internal_date = msg.get("internalDate")
     received_date = pd.to_datetime(internal_date, unit="ms") if internal_date else None
 
-    # Decode HTML body
-    def extract_html(payload):
-        if payload.get("mimeType") == "text/html":
-            data = payload.get("body", {}).get("data", "")
-            return base64.urlsafe_b64decode(data.encode()).decode("utf-8", errors="ignore")
-        for part in payload.get("parts", []):
-            html = extract_html(part)
-            if html:
-                return html
-        return ""
-    
-    body = extract_html(msg["payload"])
     return subject, body, received_date

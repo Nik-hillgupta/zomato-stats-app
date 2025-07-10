@@ -9,7 +9,7 @@ from google.oauth2.credentials import Credentials
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-REDIRECT_URI = "https://zomato-stats-app-plvlspp2pgybokc5hokpfb.streamlit.app/"
+REDIRECT_URI = "https://zomato-stats-app-plvlspp2pgybokc5hokpfb.streamlit.app"
 
 def authenticate_gmail():
     if "gmail_token" in st.session_state:

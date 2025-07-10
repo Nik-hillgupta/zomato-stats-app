@@ -1,47 +1,80 @@
 import streamlit as st
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
 import pandas as pd
-from gmail_service import authenticate_gmail, search_zomato_emails, fetch_email_content
+from gmail_service import search_zomato_emails, fetch_email_content
 from zomato_parser import parse_email
-from summary import compute_summary
+from summary import generate_summary
 
-st.set_page_config(page_title="Zomato Order Summary", layout="wide")
+st.set_page_config(page_title="Zomato Order Summary", layout="centered")
 st.title("🍽️ Zomato Order Summary")
-st.write("Get insights on your Zomato spending directly from your Gmail.")
+st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
+# --- Secrets ---
+CLIENT_CONFIG = {
+    "web": {
+        "client_id": st.secrets["gmail"]["client_id"],
+        "client_secret": st.secrets["gmail"]["client_secret"],
+        "redirect_uris": [st.secrets["gmail"]["redirect_uri"]],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token"
+    }
+}
+SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
+# --- Session Reset ---
 if st.button("🔁 Force Clear Session and Retry Login"):
-    st.cache_data.clear()
+    st.session_state.clear()
     st.rerun()
 
-st.info("📩 Fetching your Zomato emails...")
-service = authenticate_gmail()
-messages = search_zomato_emails(service, "from:noreply@zomato.com OR from:order@zomato.com")
+# --- Step 1: OAuth ---
+if "credentials" not in st.session_state:
+    flow = Flow.from_client_config(
+        client_config=CLIENT_CONFIG,
+        scopes=SCOPES,
+        redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
+    )
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes=True)
+    st.markdown(f"[Click here to log in with Gmail]({auth_url})")
+    code = st.query_params.get("code")
+    if code:
+        try:
+            flow.fetch_token(code=code)
+            st.session_state["credentials"] = flow.credentials
+            st.rerun()
+        except Exception as e:
+            st.error(f"OAuth Error: {e}")
+            st.stop()
+    st.stop()
 
+# --- Step 2: Gmail Client ---
+credentials = st.session_state["credentials"]
+service = build("gmail", "v1", credentials=credentials)
+
+# --- Step 3: Process Emails ---
+st.info("📩 Fetching your Zomato orders...")
+
+messages = search_zomato_emails(service)
 orders = []
-for msg_id in messages:
-    subject, body = fetch_email_content(service, msg_id)
-    parsed = parse_email(body)
+
+progress = st.progress(0)
+for i, msg_id in enumerate(messages):
+    subject, body, received_date = fetch_email_content(service, msg_id)
+    parsed = parse_email(body, received_date)
     if parsed:
         orders.append(parsed)
+    progress.progress((i + 1) / len(messages))
 
 if not orders:
     st.warning("No valid Zomato orders found.")
     st.stop()
 
+# --- Step 4: Display Orders + Summary ---
 df = pd.DataFrame(orders)
-df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
-df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
-
-st.success(f"✅ Found {len(df)} Zomato orders.")
-
-# Display raw table
+st.success(f"✅ Found {len(df)} valid Zomato orders.")
 st.dataframe(df)
 
-# Show summary
-st.subheader("📊 Summary")
-with st.spinner("Computing summary..."):
-    try:
-        summary_lines = compute_summary(df)
-        for line in summary_lines:
-            st.write(line)
-    except Exception as e:
-        st.error(f"Failed to compute summary: {e}")
+# --- Step 5: Show Dashboard Summary ---
+st.markdown("## 📊 Order Summary")
+summary_text = generate_summary(df)
+st.markdown(summary_text)

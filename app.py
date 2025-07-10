@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_oauth import OAuth2Component
+from streamlit_oauth_authlib import OAuth2Component  # ✅ correct import
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from gmail_service import search_zomato_emails, fetch_email_content
@@ -21,8 +21,8 @@ oauth2 = OAuth2Component(
     client_secret=client_secret,
     authorize_endpoint="https://accounts.google.com/o/oauth2/auth",
     token_endpoint="https://oauth2.googleapis.com/token",
-    redirect_uri="https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app",
-    scope=["https://www.googleapis.com/auth/gmail.readonly"],
+    redirect_uri="https://your-app-name.streamlit.app",  # update if needed
+    scope=["https://www.googleapis.com/auth/gmail.readonly"]
 )
 
 # Step 1: Google Login

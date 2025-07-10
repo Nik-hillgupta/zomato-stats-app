@@ -1,44 +1,32 @@
-import pandas as pd
-from collections import Counter
+def generate_summary(df):
+    df_clean = df[df["amount"].notnull()].copy()
+    total_orders = len(df_clean)
+    total_spent = df_clean["amount"].sum()
 
-def compute_summary(df: pd.DataFrame) -> list[str]:
-    lines = []
-    df = df.copy()
+    max_order = df_clean.loc[df_clean["amount"].idxmax()]
+    min_order = df_clean.loc[df_clean["amount"].idxmin()]
 
-    total_orders = len(df)
-    total_amount = df["amount"].sum(skipna=True)
+    # Parse years
+    df_clean["year"] = df_clean["order_date"].astype(str).str.extract(r"(\d{4})")
+    yoy = df_clean.groupby("year")["amount"].sum().sort_index()
 
-    lines.append(f"• Total orders placed: **{total_orders}**")
-    lines.append(f"• Total amount spent: **₹{total_amount:,.2f}**")
+    # Items breakdown
+    all_items = df_clean["items"].explode()
+    item_freq = all_items.value_counts().head(5)
 
-    # Highest and lowest
-    if not df["amount"].isna().all():
-        max_row = df.loc[df["amount"].idxmax()]
-        min_row = df.loc[df["amount"].idxmin()]
+    summary = f"""
+**📦 Total Orders Placed:** {total_orders}  
+**💰 Total Amount Spent:** ₹{total_spent:,.2f}  
+**📈 Highest Value Order:** ₹{max_order['amount']:.2f} at {max_order['restaurant']}  
+**📉 Lowest Value Order:** ₹{min_order['amount']:.2f} at {min_order['restaurant']}  
+"""
 
-        lines.append(f"• Highest order: **₹{max_row['amount']:.2f}** from **{max_row['restaurant']}**")
-        lines.append(f"• Lowest order: **₹{min_row['amount']:.2f}** from **{min_row['restaurant']}**")
+    summary += "\n**📅 Year-on-Year Spend:**\n"
+    for year, amt in yoy.items():
+        summary += f"- {year}: ₹{amt:,.2f}\n"
 
-    # Year-wise spend
-    df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
-    df["year"] = df["order_date"].dt.year
-    yearly = df.groupby("year")["amount"].sum().dropna().sort_index()
+    summary += "\n**🍴 Most Ordered Items:**\n"
+    for item, count in item_freq.items():
+        summary += f"- {item} × {count}\n"
 
-    if not yearly.empty:
-        lines.append("• Year-on-Year Spend:")
-        for year, amt in yearly.items():
-            lines.append(f"  - {int(year)}: ₹{amt:,.2f}")
-
-    # Most ordered items
-    all_items = []
-    for i in df["items"]:
-        all_items.extend(i)
-    counter = Counter(all_items)
-    top_items = counter.most_common(5)
-
-    if top_items:
-        lines.append("• Most Ordered Items:")
-        for item, count in top_items:
-            lines.append(f"  - {item} ({count} times)")
-
-    return lines
+    return summary

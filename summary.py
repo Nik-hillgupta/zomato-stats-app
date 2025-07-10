@@ -1,3 +1,5 @@
+import pandas as pd
+
 def generate_summary(df):
     df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
     df["amount"] = df["amount"].astype(float)

@@ -1,11 +1,8 @@
 import streamlit as st
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-import pickle
-import os
 import base64
 import re
-import datetime
 from bs4 import BeautifulSoup
 
 st.set_page_config(page_title="Zomato Order Summary", layout="centered")
@@ -25,39 +22,51 @@ CLIENT_CONFIG = {
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-# 👇 Add this above the session check
+# 👉 Add session reset button
 if st.button("🔁 Force Clear Session and Retry Login"):
     st.session_state.clear()
     st.experimental_rerun()
 
+# Step 1: Authenticate user
 if "credentials" not in st.session_state:
     flow = Flow.from_client_config(
         client_config=CLIENT_CONFIG,
         scopes=SCOPES,
         redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
     )
-    auth_url, _ = flow.authorization_url(prompt="consent")
+
+    auth_url, _ = flow.authorization_url(
+        prompt="consent",
+        access_type="offline",
+        include_granted_scopes=True
+    )
 
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
     code = st.query_params.get("code")
-    
+
     if code:
-        flow.fetch_token(code=code[0])
-        credentials = flow.credentials
-        st.session_state["credentials"] = credentials
-        st.experimental_rerun()
+        try:
+            flow.fetch_token(code=code[0])
+            credentials = flow.credentials
+            st.session_state["credentials"] = credentials
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"OAuth Error: {e}")
+            st.stop()
     st.stop()
 
-# Authenticated, build Gmail API client
+# Step 2: Gmail API client
 credentials = st.session_state["credentials"]
 service = build("gmail", "v1", credentials=credentials)
 
-# Fetch emails
+# Step 3: Fetch Zomato emails
 def get_zomato_emails(service):
-    result = service.users().messages().list(userId="me", q="from:order@zomato.com", maxResults=50).execute()
-    messages = result.get("messages", [])
-    return messages
+    result = service.users().messages().list(
+        userId="me", q="from:order@zomato.com", maxResults=50
+    ).execute()
+    return result.get("messages", [])
 
+# Step 4: Parse email content
 def parse_email_content(content):
     try:
         soup = BeautifulSoup(content, "html.parser")
@@ -75,6 +84,7 @@ def parse_email_content(content):
     except Exception:
         return None
 
+# Step 5: Display orders
 st.markdown("🔄 Fetching your Zomato emails...")
 emails = get_zomato_emails(service)
 

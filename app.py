@@ -12,7 +12,7 @@ st.set_page_config(page_title="Zomato Order Summary", page_icon="🍽️", layou
 st.title("🍽️ Zomato Order Summary")
 st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-# ✅ OAuth2 Setup (MUST be exactly like this)
+# ✅ Load OAuth credentials from Streamlit secrets
 client_id = st.secrets["gmail"]["client_id"]
 client_secret = st.secrets["gmail"]["client_secret"]
 
@@ -21,7 +21,7 @@ oauth2 = OAuth2Component(
     client_secret=client_secret,
     auth_url="https://accounts.google.com/o/oauth2/auth",
     token_url="https://oauth2.googleapis.com/token",
-    redirect_uri="https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app",  # no trailing slash!
+    redirect_uri="https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app",
     scope=["https://www.googleapis.com/auth/gmail.readonly"],
     name="google"
 )

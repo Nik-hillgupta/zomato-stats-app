@@ -22,25 +22,17 @@ CLIENT_CONFIG = {
 }
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-# --- Session Reset ---
-if st.button("🔁 Force Clear Session and Retry Login"):
-    st.session_state.clear()
-    st.rerun()
-
-# --- Step 1: OAuth ---
+# --- Step 1: OAuth Login Instruction + Link ---
 if "credentials" not in st.session_state:
+    st.markdown("**🔐 Please log in with the Gmail account linked to your Zomato orders.**")
     flow = Flow.from_client_config(
         client_config=CLIENT_CONFIG,
         scopes=SCOPES,
         redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
     )
-    # ✅ Correct boolean value here
-    auth_url, _ = flow.authorization_url(
-        prompt="consent",
-        access_type="offline",
-        include_granted_scopes='true'
-    )
-    st.markdown(f"[Click here to log in with Gmail]({auth_url})")
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes=True)
+    st.link_button("Click here to log in with Gmail", auth_url)
+
     code = st.query_params.get("code")
     if code:
         try:
@@ -56,12 +48,19 @@ if "credentials" not in st.session_state:
 credentials = st.session_state["credentials"]
 service = build("gmail", "v1", credentials=credentials)
 
-# --- Step 3: Process Emails ---
-st.info("📩 Fetching your Zomato orders...")
+# --- Step 3: Get User Info ---
+st.markdown("### 👤 Enter your details")
+user_name = st.text_input("Your Name")
+user_phone = st.text_input("Phone Number")
 
+if not user_name or not user_phone:
+    st.warning("Please enter your name and phone number before continuing.")
+    st.stop()
+
+# --- Step 4: Process Emails ---
+st.info("📩 Fetching your Zomato orders...")
 messages = search_zomato_emails(service)
 orders = []
-
 progress = st.progress(0)
 for i, msg_id in enumerate(messages):
     subject, body, received_date = fetch_email_content(service, msg_id)
@@ -74,12 +73,14 @@ if not orders:
     st.warning("No valid Zomato orders found.")
     st.stop()
 
-# --- Step 4: Display Orders + Summary ---
+# --- Step 5: Display Summary First ---
 df = pd.DataFrame(orders)
 st.success(f"✅ Found {len(df)} valid Zomato orders.")
-st.dataframe(df)
 
-# --- Step 5: Show Dashboard Summary ---
 st.markdown("## 📊 Order Summary")
 summary_text = generate_summary(df)
 st.markdown(summary_text)
+
+# --- Step 6: Display Orders Table ---
+st.markdown("## 📄 Full Order History")
+st.dataframe(df)

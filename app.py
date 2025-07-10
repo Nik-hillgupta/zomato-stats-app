@@ -25,7 +25,7 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 # 👉 Add session reset button
 if st.button("🔁 Force Clear Session and Retry Login"):
     st.session_state.clear()
-    st.experimental_rerun()
+    st.rerun()
 
 # Step 1: Authenticate user
 if "credentials" not in st.session_state:
@@ -38,7 +38,7 @@ if "credentials" not in st.session_state:
     auth_url, _ = flow.authorization_url(
         prompt="consent",
         access_type="offline",
-        include_granted_scopes=True
+        include_granted_scopes="true"  # must be a lowercase string
     )
 
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
@@ -49,7 +49,7 @@ if "credentials" not in st.session_state:
             flow.fetch_token(code=code[0])
             credentials = flow.credentials
             st.session_state["credentials"] = credentials
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(f"OAuth Error: {e}")
             st.stop()

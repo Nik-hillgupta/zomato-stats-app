@@ -1,52 +1,92 @@
 import streamlit as st
-import pandas as pd
-from gmail_service import authenticate_gmail, search_zomato_emails, fetch_email_content
-from zomato_parser import parse_email
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+import pickle
+import os
+import base64
+import re
+import datetime
+from bs4 import BeautifulSoup
 
-st.set_page_config(page_title="Zomato Order Summary", page_icon="🍽️")
+st.set_page_config(page_title="Zomato Order Summary", layout="centered")
 st.title("🍽️ Zomato Order Summary")
-st.write("This tool reads your Zomato order history from your Gmail account.")
+st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-if st.button("Login with Gmail"):
+# Load client secrets from Streamlit secrets
+CLIENT_CONFIG = {
+    "web": {
+        "client_id": st.secrets["gmail"]["client_id"],
+        "client_secret": st.secrets["gmail"]["client_secret"],
+        "redirect_uris": [st.secrets["gmail"]["redirect_uri"]],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token"
+    }
+}
+
+SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
+if "credentials" not in st.session_state:
+    flow = Flow.from_client_config(
+        client_config=CLIENT_CONFIG,
+        scopes=SCOPES,
+        redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
+    )
+    auth_url, _ = flow.authorization_url(prompt="consent")
+
+    st.markdown(f"[Click here to log in with Gmail]({auth_url})")
+    code = st.experimental_get_query_params().get("code")
+    
+    if code:
+        flow.fetch_token(code=code[0])
+        credentials = flow.credentials
+        st.session_state["credentials"] = credentials
+        st.experimental_rerun()
+    st.stop()
+
+# Authenticated, build Gmail API client
+credentials = st.session_state["credentials"]
+service = build("gmail", "v1", credentials=credentials)
+
+# Fetch emails
+def get_zomato_emails(service):
+    result = service.users().messages().list(userId="me", q="from:order@zomato.com", maxResults=50).execute()
+    messages = result.get("messages", [])
+    return messages
+
+def parse_email_content(content):
     try:
-        service = authenticate_gmail()
-        st.success("✅ Logged in via Gmail!")
+        soup = BeautifulSoup(content, "html.parser")
+        text = soup.get_text()
 
-        with st.spinner("Fetching Zomato emails..."):
-            messages = search_zomato_emails(service, "from:noreply@zomato.com OR from:order@zomato.com")
+        restaurant = re.search(r"(?i)from\s+(.+?)\s+on", text)
+        amount = re.search(r"₹\s?(\d+[\d,]*)", text)
+        date_match = re.search(r"(?i)(?:delivered|placed|ordered).+?on\s+(\d{1,2} \w+ \d{4})", text)
 
-        all_orders = []
-        no_amount_emails = []
+        return {
+            "restaurant": restaurant.group(1).strip() if restaurant else "N/A",
+            "amount": f"₹{amount.group(1)}" if amount else "N/A",
+            "date": date_match.group(1) if date_match else "N/A"
+        }
+    except Exception:
+        return None
 
-        for idx, msg_id in enumerate(messages, 1):
-            subject, body = fetch_email_content(service, msg_id)
-            parsed = parse_email(body)
+st.markdown("🔄 Fetching your Zomato emails...")
+emails = get_zomato_emails(service)
 
+orders = []
+for msg in emails:
+    raw = service.users().messages().get(userId="me", id=msg["id"], format="full").execute()
+    parts = raw["payload"].get("parts", [])
+    for part in parts:
+        if part["mimeType"] == "text/html":
+            data = base64.urlsafe_b64decode(part["body"]["data"]).decode("utf-8")
+            parsed = parse_email_content(data)
             if parsed:
-                if parsed["amount"] is None:
-                    no_amount_emails.append(f"Email #{idx}: {subject}")
-                else:
-                    all_orders.append(parsed)
+                orders.append(parsed)
+            break
 
-        # Show summary
-        st.markdown("## 📊 Summary")
-        st.write(f"📬 Total Zomato emails: **{len(messages)}**")
-        st.write(f"✅ Amount extracted from: **{len(all_orders)}** emails")
-        st.write(f"❌ No amount found in: **{len(no_amount_emails)}** emails")
-
-        total_spent = sum(order["amount"] for order in all_orders if order["amount"] is not None)
-        st.write(f"💰 Total amount spent: ₹**{total_spent:,.2f}**")
-
-        if no_amount_emails:
-            with st.expander("📌 Emails without amount"):
-                for line in no_amount_emails:
-                    st.markdown(f"- {line}")
-
-        # Show full table
-        if all_orders:
-            df = pd.DataFrame(all_orders)
-            st.markdown("## 🧾 Detailed Orders")
-            st.dataframe(df)
-
-    except Exception as e:
-        st.error(f"❌ Failed: {e}")
+if orders:
+    st.success(f"✅ Found {len(orders)} Zomato orders.")
+    st.dataframe(orders)
+else:
+    st.warning("No Zomato orders found.")

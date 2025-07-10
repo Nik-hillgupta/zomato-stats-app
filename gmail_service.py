@@ -1,21 +1,22 @@
 import base64
+import json
 import pandas as pd
+from tempfile import NamedTemporaryFile
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 import streamlit as st
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 def authenticate_gmail():
     creds = None
-
     secrets_dict = dict(st.secrets["gmail"])
+
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
         json.dump(secrets_dict, temp)
         temp.flush()
         flow = InstalledAppFlow.from_client_secrets_file(temp.name, SCOPES)
-        creds = flow.run_console()  # ⬅️ Use this instead of run_local_server()
+        creds = flow.run_console()  # Run in console mode for deployed Streamlit
 
     return build("gmail", "v1", credentials=creds)
 

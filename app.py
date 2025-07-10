@@ -12,21 +12,17 @@ st.set_page_config(page_title="Zomato Order Summary", page_icon="🍽️", layou
 st.title("🍽️ Zomato Order Summary")
 st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-# OAuth Setup
+# ✅ OAuth2 Setup (MUST be exactly like this)
 client_id = st.secrets["gmail"]["client_id"]
 client_secret = st.secrets["gmail"]["client_secret"]
-redirect_uri = "https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app"
-auth_url = "https://accounts.google.com/o/oauth2/auth"
-token_url = "https://oauth2.googleapis.com/token"
-scope = "https://www.googleapis.com/auth/gmail.readonly"
 
 oauth2 = OAuth2Component(
     client_id=client_id,
     client_secret=client_secret,
-    auth_url=auth_url,
-    token_url=token_url,
-    redirect_uri=redirect_uri,
-    scope=scope,  # ✅ wrapped in list
+    auth_url="https://accounts.google.com/o/oauth2/auth",
+    token_url="https://oauth2.googleapis.com/token",
+    redirect_uri="https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app",  # no trailing slash!
+    scope="https://www.googleapis.com/auth/gmail.readonly",
     name="google"
 )
 
@@ -39,15 +35,15 @@ if "token" not in st.session_state:
 else:
     token = st.session_state.token
 
-# Step 2: Use token to authenticate Gmail API
+# Step 2: Authenticate Gmail API
 try:
     creds = Credentials(
         token=token['access_token'],
         refresh_token=token.get('refresh_token'),
-        token_uri=token_url,
+        token_uri="https://oauth2.googleapis.com/token",
         client_id=client_id,
         client_secret=client_secret,
-        scopes=[scope]
+        scopes=["https://www.googleapis.com/auth/gmail.readonly"]
     )
     service = build('gmail', 'v1', credentials=creds)
 except Exception as e:
@@ -105,6 +101,6 @@ if phone:
             st.write(f"💵 Amount: ₹{order['amount']:.2f}")
             st.markdown("---")
 
-    # Share (coming soon)
+    # Share (Coming Soon)
     st.subheader("📤 Share Your Summary")
     st.write("Feature coming soon: generate image or link to share with friends!")

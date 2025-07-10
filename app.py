@@ -22,7 +22,7 @@ oauth2 = OAuth2Component(
     auth_url="https://accounts.google.com/o/oauth2/auth",
     token_url="https://oauth2.googleapis.com/token",
     redirect_uri="https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app",  # no trailing slash!
-    scope="https://www.googleapis.com/auth/gmail.readonly",
+    scope=["https://www.googleapis.com/auth/gmail.readonly"],
     name="google"
 )
 

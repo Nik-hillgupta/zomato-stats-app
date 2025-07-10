@@ -36,7 +36,7 @@ if "credentials" not in st.session_state:
     auth_url, _ = flow.authorization_url(
         prompt="consent",
         access_type="offline",
-        include_granted_scopes=True
+        include_granted_scopes='true'
     )
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
     code = st.query_params.get("code")

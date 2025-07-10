@@ -17,6 +17,9 @@ client_id = st.secrets["gmail"]["client_id"]
 client_secret = st.secrets["gmail"]["client_secret"]
 redirect_uri = st.secrets["gmail"]["redirect_uri"]
 
+# 👉 Debug print
+st.write("🔁 Redirect URI from secrets:", redirect_uri)
+
 oauth2 = OAuth2Component(
     client_id=client_id,
     client_secret=client_secret,

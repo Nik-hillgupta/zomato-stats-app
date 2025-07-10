@@ -81,6 +81,10 @@ highest_order = df.loc[df["amount"].idxmax()]
 lowest_order = df.loc[df["amount"].idxmin()]
 
 # Year-wise spend
+# Convert order_date to datetime, invalid formats become NaT
+df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
+
+# Now extract year only from valid dates
 df["year"] = df["order_date"].dt.year
 yearly_spend = df.groupby("year")["amount"].sum().sort_index()
 

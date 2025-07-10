@@ -17,7 +17,7 @@ def authenticate_gmail():
         json.dump(full_config, temp)
         temp.flush()
         flow = InstalledAppFlow.from_client_secrets_file(temp.name, SCOPES)
-        creds = flow.run_console()  # For deployed apps; use run_local_server() in local dev
+        creds = flow.run_local_server(port=0)  # For deployed apps; use run_local_server() in local dev
 
     return build("gmail", "v1", credentials=creds)
 

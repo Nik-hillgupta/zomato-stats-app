@@ -4,17 +4,12 @@ from bs4 import BeautifulSoup
 def parse_email(html):
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(separator="\n")
-    text = re.sub(r"[ \t]+", " ", text)  # normalize spaces
+    text = re.sub(r"[ \t]+", " ", text)
 
-    # Filter out non-order emails
-    skip_phrases = [
-        "Login Alert", "Zomato Gold", "Congratulations",
-        "cancelled", "bill payment", "feedback"
-    ]
-    if any(phrase in text for phrase in skip_phrases):
+    if any(x in text for x in ["Login Alert", "Zomato Gold", "Congratulations", "cancelled", "bill payment"]):
         return None
 
-    # Extract amount
+    # Amount
     amount = None
     match = re.search(r"Total (paid|cost)\s*[₹Rs.]?\s?([\d,]+\.\d{2})", text)
     if not match:
@@ -31,31 +26,32 @@ def parse_email(html):
     name_match = re.search(r"Hi\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)", text)
     customer_name = name_match.group(1).strip() if name_match else "N/A"
 
-    # Restaurant name
+    # Restaurant
     restaurant = None
-    r_match = re.search(r"Thank you for ordering (?:from|food online on Zomato,)\s+([^\n]+)", text)
-    if r_match:
-        restaurant = r_match.group(1).strip()
+    m = re.search(r"Thank you for ordering (?:from|food online on Zomato,)\s+([^\n]+)", text)
+    if m:
+        restaurant = m.group(1).strip()
+    restaurant = restaurant or "N/A"
 
-    # Restaurant address
+    # Address
     restaurant_address = None
-    if restaurant:
-        addr_match = re.search(r"Issued on behalf of\s+" + re.escape(restaurant) + r"\s+(.+?Bangalore.*?)\n", text, re.IGNORECASE)
-        if addr_match:
-            restaurant_address = addr_match.group(1).strip()
+    addr_match = re.search(r"Issued on behalf of\s+" + re.escape(restaurant) + r"\s+(.+?Bangalore.*?)\n", text, re.IGNORECASE)
+    if addr_match:
+        restaurant_address = addr_match.group(1).strip()
+    restaurant_address = restaurant_address or "N/A"
 
     # Order date
     date_match = re.search(r"(\w{3}, \w{3} \d{1,2}, \d{4})", text)
     order_date = date_match.group(1) if date_match else None
-
     if not order_date:
         fallback = re.search(r"Delivered on (\d{1,2} \w+ \d{4})", text)
         if fallback:
             order_date = fallback.group(1)
+    order_date = order_date or "N/A"
 
     # Items
     lines = text.split("\n")
-    item_lines = [line.strip() for line in lines if re.search(r"\d+ ?[xX] ", line) or re.search(r"₹", line)]
+    item_lines = [line.strip() for line in lines if re.search(r"\d+ ?[xX] ", line) or "₹" in line]
     items = []
     for line in item_lines:
         item_match = re.search(r"(\d+ ?[xX])? ?(.+?) ?-? ?₹\s?([\d.]+)", line)
@@ -65,15 +61,16 @@ def parse_email(html):
             price = item_match.group(3).strip()
             items.append(f"{qty} {name} - ₹{price}")
         else:
-            loose_match = re.match(r"(.*Cake|.*Puri|.*Pizza|.*Roll|.*Bhature|.*Burger|.*Paratha|.*Biryani|.*Kebab)", line, re.IGNORECASE)
+            loose_match = re.match(r"(.*Cake|.*Pizza|.*Roll|.*Bhature|.*Burger|.*Paratha|.*Biryani|.*Kebab)", line, re.IGNORECASE)
             if loose_match:
                 items.append(loose_match.group(1).strip())
+    items = items or ["N/A"]
 
     return {
-        "name": customer_name or "N/A",
-        "restaurant": restaurant or "N/A",
-        "restaurant_address": restaurant_address or "N/A",
-        "order_date": order_date or "N/A",
-        "items": items or ["N/A"],
+        "name": customer_name,
+        "restaurant": restaurant,
+        "restaurant_address": restaurant_address,
+        "order_date": order_date,
+        "items": items,
         "amount": amount
     }

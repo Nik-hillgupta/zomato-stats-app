@@ -12,34 +12,35 @@ st.set_page_config(page_title="Zomato Order Summary", page_icon="🍽️", layou
 st.title("🍽️ Zomato Order Summary")
 st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-# ✅ Load OAuth credentials from Streamlit secrets
+# ✅ OAuth2 Setup
 client_id = st.secrets["gmail"]["client_id"]
 client_secret = st.secrets["gmail"]["client_secret"]
 
 oauth2 = OAuth2Component(
     client_id=client_id,
     client_secret=client_secret,
-    auth_url="https://accounts.google.com/o/oauth2/auth",
-    token_url="https://oauth2.googleapis.com/token",
+    authorize_endpoint="https://accounts.google.com/o/oauth2/auth",
+    token_endpoint="https://oauth2.googleapis.com/token",
     redirect_uri="https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app",
     scope=["https://www.googleapis.com/auth/gmail.readonly"],
-    name="google"
 )
 
 # Step 1: Google Login
-if "token" not in st.session_state:
-    token = oauth2.authorize_button("🔐 Login with Google", "Continue to Zomato Summary", "")
-    if not token:
-        st.stop()
-    st.session_state.token = token
-else:
-    token = st.session_state.token
+token = oauth2.authorize_button(
+    name="google",
+    icon="🔐",
+    login_button_text="Login with Google",
+    logout_button_text="Logout",
+)
+
+if not token:
+    st.stop()
 
 # Step 2: Authenticate Gmail API
 try:
     creds = Credentials(
-        token=token['access_token'],
-        refresh_token=token.get('refresh_token'),
+        token=token["access_token"],
+        refresh_token=token.get("refresh_token"),
         token_uri="https://oauth2.googleapis.com/token",
         client_id=client_id,
         client_secret=client_secret,
@@ -47,7 +48,7 @@ try:
     )
     service = build('gmail', 'v1', credentials=creds)
 except Exception as e:
-    st.error(f"Failed to authenticate with Gmail: {e}")
+    st.error(f"❌ Gmail Authentication failed: {e}")
     st.stop()
 
 # Step 3: Search Zomato emails
@@ -101,6 +102,5 @@ if phone:
             st.write(f"💵 Amount: ₹{order['amount']:.2f}")
             st.markdown("---")
 
-    # Share (Coming Soon)
     st.subheader("📤 Share Your Summary")
     st.write("Feature coming soon: generate image or link to share with friends!")

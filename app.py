@@ -7,26 +7,35 @@ from zomato_parser import parse_email
 from collections import Counter
 import re
 
-# App config
+# ------------------------
+# App Config
+# ------------------------
 st.set_page_config(page_title="Zomato Order Summary", page_icon="🍽️", layout="centered")
 st.title("🍽️ Zomato Order Summary")
 st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-# ✅ OAuth2 Setup
+# ------------------------
+# Load secrets from Streamlit Cloud
+# ------------------------
 client_id = st.secrets["gmail"]["client_id"]
 client_secret = st.secrets["gmail"]["client_secret"]
 redirect_uri = st.secrets["gmail"]["redirect_uri"]
 
+# ------------------------
+# Setup OAuth2
+# ------------------------
 oauth2 = OAuth2Component(
     client_id=client_id,
     client_secret=client_secret,
+    redirect_uri=redirect_uri,
     authorize_endpoint="https://accounts.google.com/o/oauth2/auth",
     token_endpoint="https://oauth2.googleapis.com/token",
-    redirect_uri=redirect_uri,
-    scope=["https://www.googleapis.com/auth/gmail.readonly"]
+    scopes=["https://www.googleapis.com/auth/gmail.readonly"]
 )
 
-# Step 1: Google Login
+# ------------------------
+# Step 1: Login Button
+# ------------------------
 token = oauth2.authorize_button(
     name="google",
     icon="🔐",
@@ -37,7 +46,9 @@ token = oauth2.authorize_button(
 if not token:
     st.stop()
 
+# ------------------------
 # Step 2: Authenticate Gmail API
+# ------------------------
 try:
     creds = Credentials(
         token=token["access_token"],
@@ -52,7 +63,9 @@ except Exception as e:
     st.error(f"❌ Gmail Authentication failed: {e}")
     st.stop()
 
+# ------------------------
 # Step 3: Search Zomato emails
+# ------------------------
 st.info("✅ Logged in successfully! Looking for Zomato orders...")
 messages = search_zomato_emails(service, "from:noreply@zomato.com OR from:order@zomato.com")
 
@@ -61,7 +74,9 @@ if not messages:
     st.button("🔁 Try again", on_click=lambda: st.session_state.clear())
     st.stop()
 
-# Step 4: Ask for phone number
+# ------------------------
+# Step 4: Ask for Phone Number
+# ------------------------
 phone = st.text_input("📞 Enter your phone number to personalize your dashboard")
 
 if phone:
@@ -80,19 +95,25 @@ if phone:
                 all_orders.append(parsed)
                 total_spent += parsed["amount"]
 
+    # ------------------------
     # Summary
+    # ------------------------
     st.subheader("📊 Summary")
     st.metric("Total Orders", len(all_orders))
     st.metric("Total Amount Spent", f"₹{total_spent:,.2f}")
 
+    # ------------------------
     # Year-wise breakdown
+    # ------------------------
     st.subheader("📅 Orders by Year")
     years = [re.search(r"\d{4}", o["order_date"]).group() for o in all_orders if re.search(r"\d{4}", o["order_date"])]
     counts = Counter(years)
     for year, count in sorted(counts.items()):
         st.write(f"{year}: {count} orders")
 
+    # ------------------------
     # Order details
+    # ------------------------
     with st.expander("🧾 View All Orders"):
         for i, order in enumerate(all_orders, 1):
             st.markdown(f"### #{i}. {order['restaurant']}")
@@ -103,5 +124,8 @@ if phone:
             st.write(f"💵 Amount: ₹{order['amount']:.2f}")
             st.markdown("---")
 
+    # ------------------------
+    # Share summary
+    # ------------------------
     st.subheader("📤 Share Your Summary")
     st.write("Feature coming soon: generate image or link to share with friends!")

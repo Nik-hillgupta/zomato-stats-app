@@ -1,30 +1,30 @@
 import streamlit as st
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-import pickle
-import os
 import base64
-import re
-import datetime
 from bs4 import BeautifulSoup
+from zomato_parser import parse_email
+import pandas as pd
 
+# Streamlit config
 st.set_page_config(page_title="Zomato Order Summary", layout="centered")
 st.title("🍽️ Zomato Order Summary")
 st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-# Load client secrets from Streamlit secrets
+# OAuth credentials from secrets
 CLIENT_CONFIG = {
     "web": {
         "client_id": st.secrets["gmail"]["client_id"],
         "client_secret": st.secrets["gmail"]["client_secret"],
         "redirect_uris": [st.secrets["gmail"]["redirect_uri"]],
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token"
+        "auth_uri": st.secrets["gmail"]["auth_uri"],
+        "token_uri": st.secrets["gmail"]["token_uri"]
     }
 }
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
+# Step 1: Authenticate
 if "credentials" not in st.session_state:
     flow = Flow.from_client_config(
         client_config=CLIENT_CONFIG,
@@ -32,10 +32,9 @@ if "credentials" not in st.session_state:
         redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
     )
     auth_url, _ = flow.authorization_url(prompt="consent")
-
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
+    st.info("Please log in with Gmail to continue.")
     code = st.experimental_get_query_params().get("code")
-    
     if code:
         flow.fetch_token(code=code[0])
         credentials = flow.credentials
@@ -43,50 +42,38 @@ if "credentials" not in st.session_state:
         st.experimental_rerun()
     st.stop()
 
-# Authenticated, build Gmail API client
+# Step 2: Gmail API client
 credentials = st.session_state["credentials"]
 service = build("gmail", "v1", credentials=credentials)
 
-# Fetch emails
+# Step 3: Fetch and parse emails
 def get_zomato_emails(service):
-    result = service.users().messages().list(userId="me", q="from:order@zomato.com", maxResults=50).execute()
-    messages = result.get("messages", [])
-    return messages
+    result = service.users().messages().list(userId="me", q="from:order@zomato.com", maxResults=100).execute()
+    return result.get("messages", [])
 
-def parse_email_content(content):
-    try:
-        soup = BeautifulSoup(content, "html.parser")
-        text = soup.get_text()
-
-        restaurant = re.search(r"(?i)from\s+(.+?)\s+on", text)
-        amount = re.search(r"₹\s?(\d+[\d,]*)", text)
-        date_match = re.search(r"(?i)(?:delivered|placed|ordered).+?on\s+(\d{1,2} \w+ \d{4})", text)
-
-        return {
-            "restaurant": restaurant.group(1).strip() if restaurant else "N/A",
-            "amount": f"₹{amount.group(1)}" if amount else "N/A",
-            "date": date_match.group(1) if date_match else "N/A"
-        }
-    except Exception:
-        return None
-
-st.markdown("🔄 Fetching your Zomato emails...")
-emails = get_zomato_emails(service)
-
-orders = []
-for msg in emails:
-    raw = service.users().messages().get(userId="me", id=msg["id"], format="full").execute()
-    parts = raw["payload"].get("parts", [])
+def get_email_body(service, msg_id):
+    msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
+    payload = msg.get("payload", {})
+    parts = payload.get("parts", [])
     for part in parts:
         if part["mimeType"] == "text/html":
-            data = base64.urlsafe_b64decode(part["body"]["data"]).decode("utf-8")
-            parsed = parse_email_content(data)
-            if parsed:
-                orders.append(parsed)
-            break
+            data = part["body"]["data"]
+            return base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+    return ""
+
+st.markdown("🔄 Fetching your Zomato emails...")
+messages = get_zomato_emails(service)
+
+orders = []
+for msg in messages:
+    body = get_email_body(service, msg["id"])
+    parsed = parse_email(body)
+    if parsed:
+        orders.append(parsed)
 
 if orders:
     st.success(f"✅ Found {len(orders)} Zomato orders.")
-    st.dataframe(orders)
+    df = pd.DataFrame(orders)
+    st.dataframe(df)
 else:
     st.warning("No Zomato orders found.")

@@ -9,16 +9,18 @@ import streamlit as st
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 def authenticate_gmail():
-    creds = None
+    # Wrap secrets from Streamlit into expected JSON structure
     secrets_dict = dict(st.secrets["gmail"])
+    full_config = {"installed": secrets_dict}
 
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
-        json.dump(secrets_dict, temp)
+        json.dump(full_config, temp)
         temp.flush()
         flow = InstalledAppFlow.from_client_secrets_file(temp.name, SCOPES)
-        creds = flow.run_console()  # Run in console mode for deployed Streamlit
+        creds = flow.run_console()  # For deployed apps; use run_local_server() in local dev
 
     return build("gmail", "v1", credentials=creds)
+
 
 def search_zomato_emails(service):
     results = []
@@ -35,6 +37,7 @@ def search_zomato_emails(service):
         if not page_token:
             break
     return results
+
 
 def fetch_email_content(service, msg_id):
     msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()

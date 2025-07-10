@@ -36,7 +36,7 @@ if "credentials" not in st.session_state:
 
     auth_url, _ = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes=True,  # ✅ MUST be Boolean, NOT string
+        include_granted_scopes='true',  # ✅ MUST be Boolean, NOT string
         prompt="consent"
     )
 

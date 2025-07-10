@@ -15,31 +15,42 @@ def authenticate_gmail():
         return build("gmail", "v1", credentials=creds)
 
     secrets_dict = dict(st.secrets["gmail"])
+
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
         client_config = {
             "installed": {
                 "client_id": secrets_dict["client_id"],
                 "client_secret": secrets_dict["client_secret"],
-                "redirect_uris": [secrets_dict["redirect_uri"]],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token"
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": ["http://localhost"]
             }
         }
         json.dump(client_config, temp)
         temp.flush()
-        flow = Flow.from_client_secrets_file(temp.name, scopes=SCOPES, redirect_uri=secrets_dict["redirect_uri"])
+
+        flow = Flow.from_client_secrets_file(
+            temp.name,
+            scopes=SCOPES,
+            redirect_uri="http://localhost"
+        )
 
     auth_url, _ = flow.authorization_url(prompt="consent")
     st.session_state["gmail_flow"] = flow
     st.session_state["auth_url"] = auth_url
-    return None  # User has not yet authorized
+    return None  # Still needs user auth
+
 
 def complete_auth(code):
-    flow = st.session_state["gmail_flow"]
+    flow = st.session_state.get("gmail_flow")
+    if not flow:
+        raise RuntimeError("OAuth flow not initialized. Please restart login.")
+
     flow.fetch_token(code=code)
     creds = flow.credentials
     st.session_state["gmail_token"] = json.loads(creds.to_json())
     return build("gmail", "v1", credentials=creds)
+
 
 def search_zomato_emails(service):
     results = []
@@ -56,6 +67,7 @@ def search_zomato_emails(service):
         if not page_token:
             break
     return results
+
 
 def fetch_email_content(service, msg_id):
     msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()

@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import json
-from modules.gmail_service import authenticate_gmail, search_zomato_emails, fetch_email_content
-from modules.zomato_parser import parse_email
-from modules.summary import generate_summary
+from gmail_service import authenticate_gmail, search_zomato_emails, fetch_email_content
+from zomato_parser import parse_email
+from summary import generate_summary
 
 st.set_page_config(page_title="Zomato Order Summary", page_icon="🍽️", layout="centered")
 st.title("🍽️ Zomato Order Summary")

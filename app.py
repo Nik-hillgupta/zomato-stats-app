@@ -20,8 +20,8 @@ redirect_uri = st.secrets["gmail"]["redirect_uri"]
 oauth2 = OAuth2Component(
     client_id=client_id,
     client_secret=client_secret,
-    authorize_endpoint="https://accounts.google.com/o/oauth2/auth",
-    token_endpoint="https://oauth2.googleapis.com/token",
+    authorize_url="https://accounts.google.com/o/oauth2/auth",  # ✅ FIXED
+    token_url="https://oauth2.googleapis.com/token",            # ✅ FIXED
     redirect_uri=redirect_uri,
     scopes=["https://www.googleapis.com/auth/gmail.readonly"]
 )

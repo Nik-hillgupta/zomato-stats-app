@@ -34,7 +34,7 @@ if "credentials" not in st.session_state:
         scopes=SCOPES,
         redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
     )
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes=True)
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes='true')
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
     code = st.query_params.get("code")
     if code:

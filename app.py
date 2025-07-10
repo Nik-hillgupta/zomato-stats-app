@@ -26,7 +26,7 @@ oauth2 = OAuth2Component(
     auth_url=auth_url,
     token_url=token_url,
     redirect_uri=redirect_uri,
-    scope=[scope],  # ✅ wrapped in list
+    scope=scope,  # ✅ wrapped in list
     name="google"
 )
 

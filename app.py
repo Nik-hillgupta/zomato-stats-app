@@ -29,8 +29,6 @@ oauth2 = OAuth2Component(
     scope=[scope],  # ✅ wrapped in list
     name="google"
 )
-)
-)
 
 # Step 1: Google Login
 if "token" not in st.session_state:

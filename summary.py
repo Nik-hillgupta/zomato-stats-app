@@ -2,29 +2,24 @@ import pandas as pd
 
 def generate_summary(df):
     df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
-    df["amount"] = df["amount"].astype(float)
-
     total_orders = len(df)
-    total_spent = df["amount"].sum()
+    total_amount = df["amount"].sum()
 
-    max_row = df.loc[df["amount"].idxmax()]
-    min_row = df.loc[df["amount"].idxmin()]
+    max_row = df.loc[df["amount"].idxmax()] if not df["amount"].isnull().all() else None
+    min_row = df.loc[df["amount"].idxmin()] if not df["amount"].isnull().all() else None
 
-    max_order = f"₹{max_row['amount']:.2f} at {max_row.get('restaurant', 'N/A')}"
-    min_order = f"₹{min_row['amount']:.2f} at {min_row.get('restaurant', 'N/A')}"
+    max_text = f"₹{max_row['amount']} at {max_row['restaurant']}" if max_row is not None else "N/A"
+    min_text = f"₹{min_row['amount']} at {min_row['restaurant']}" if min_row is not None else "N/A"
 
-    df["year"] = df["order_date"].dt.year
-    yearwise = df.groupby("year")["amount"].sum().sort_index()
+    yearwise = df.groupby(df["order_date"].dt.year)["amount"].sum().sort_index()
+    yearwise_str = "".join([f"<li>{year}: ₹{amt:,.2f}</li>" for year, amt in yearwise.items()])
 
-    summary = f"""
-**📦 Total Orders Placed:** {total_orders}  
-**💰 Total Amount Spent:** ₹{total_spent:,.2f}  
-**📈 Highest Value Order:** {max_order}  
-**📉 Lowest Value Order:** {min_order}  
+    return f"""
+- 📦 <strong>Total Orders Placed:</strong> {total_orders}  
+- 💰 <strong>Total Amount Spent:</strong> ₹{total_amount:,.2f}  
+- 📈 <strong>Highest Value Order:</strong> {max_text}  
+- 📉 <strong>Lowest Value Order:</strong> {min_text}  
 
-📅 **Year-on-Year Spend:**
+📅 <strong>Year-on-Year Spend:</strong>
+<ul>{yearwise_str}</ul>
 """
-    for year, amt in yearwise.items():
-        summary += f"- {int(year)}: ₹{amt:,.2f}\n"
-
-    return summary

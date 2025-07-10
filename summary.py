@@ -2,7 +2,6 @@ import pandas as pd
 
 def generate_summary(df):
     df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
-
     total_orders = len(df)
     total_amount = df["amount"].sum()
 

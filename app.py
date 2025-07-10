@@ -25,6 +25,11 @@ CLIENT_CONFIG = {
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
+# 👇 Add this above the session check
+if st.button("🔁 Force Clear Session and Retry Login"):
+    st.session_state.clear()
+    st.experimental_rerun()
+
 if "credentials" not in st.session_state:
     flow = Flow.from_client_config(
         client_config=CLIENT_CONFIG,

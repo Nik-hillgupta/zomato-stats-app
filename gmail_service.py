@@ -15,15 +15,14 @@ def authenticate_gmail():
         return build("gmail", "v1", credentials=creds)
 
     secrets_dict = dict(st.secrets["gmail"])
-
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
         client_config = {
-            "installed": {
+            "web": {
                 "client_id": secrets_dict["client_id"],
                 "client_secret": secrets_dict["client_secret"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["http://localhost"]
+                "auth_uri": secrets_dict["auth_uri"],
+                "token_uri": secrets_dict["token_uri"],
+                "redirect_uris": [secrets_dict["redirect_uri"]]
             }
         }
         json.dump(client_config, temp)
@@ -32,13 +31,13 @@ def authenticate_gmail():
         flow = Flow.from_client_secrets_file(
             temp.name,
             scopes=SCOPES,
-            redirect_uri="http://localhost"
+            redirect_uri=secrets_dict["redirect_uri"]
         )
 
-    auth_url, _ = flow.authorization_url(prompt="consent")
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes="true")
     st.session_state["gmail_flow"] = flow
     st.session_state["auth_url"] = auth_url
-    return None  # Still needs user auth
+    return None
 
 
 def complete_auth(code):

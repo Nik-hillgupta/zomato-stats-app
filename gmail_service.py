@@ -1,109 +1,58 @@
+import os
+import pickle
 import base64
-import json
-import pandas as pd
-import streamlit as st
-from tempfile import NamedTemporaryFile
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request  # ✅ ADD THIS
+from email import message_from_bytes
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
-REDIRECT_URI = "https://zomato-stats-app-plvlspp2pgybokc5hokpfb.streamlit.app/"
+def authenticate_gmail():
+    creds = None
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            creds = pickle.load(token)
 
-def authenticate_gmail(force_refresh=False):
-    if not force_refresh and "gmail_token" in st.session_state:
-        creds = Credentials.from_authorized_user_info(st.session_state["gmail_token"], SCOPES)
-        return build("gmail", "v1", credentials=creds)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
 
-    # Force reset of previous sessions
-    for key in ["gmail_token", "auth_url", "gmail_flow"]:
-        st.session_state.pop(key, None)
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
 
-    secrets_dict = dict(st.secrets["gmail"])
-
-    REDIRECT_URI = "https://zomato-stats-app-plvlspp2pgybokc5hokpfb.streamlit.app"
-
-    with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
-        client_config = {
-            "web": {
-                "client_id": secrets_dict["client_id"],
-                "client_secret": secrets_dict["client_secret"],
-                "auth_uri": secrets_dict["auth_uri"],
-                "token_uri": secrets_dict["token_uri"],
-                "redirect_uris": [REDIRECT_URI]
-            }
-        }
-        json.dump(client_config, temp)
-        temp.flush()
-
-        flow = Flow.from_client_secrets_file(
-            temp.name,
-            scopes=SCOPES,
-            redirect_uri=REDIRECT_URI
-        )
-
-    # Always generate a fresh URL
-    auth_url, _ = flow.authorization_url(
-        prompt="consent",
-        access_type="offline",
-        include_granted_scopes="true"
-    )
-
-    st.session_state["gmail_flow"] = flow
-    st.session_state["auth_url"] = auth_url
-    return None
-
-def complete_auth(code):
-    flow = st.session_state.get("gmail_flow")
-    if not flow:
-        raise RuntimeError("OAuth flow not initialized. Please restart login.")
-
-    flow.fetch_token(code=code)
-    creds = flow.credentials
-    st.session_state["gmail_token"] = json.loads(creds.to_json())
+    print("✅ Gmail API authenticated successfully!")
     return build("gmail", "v1", credentials=creds)
 
+def search_zomato_emails(service, query):
+    results = service.users().messages().list(userId="me", q=query, maxResults=500).execute()
+    return [msg["id"] for msg in results.get("messages", [])]
 
-def search_zomato_emails(service):
-    results = []
-    page_token = None
-    while True:
-        response = service.users().messages().list(
-            userId="me",
-            q="from:(noreply@zomato.com OR order@zomato.com)",
-            maxResults=100,
-            pageToken=page_token
-        ).execute()
-        results.extend([msg["id"] for msg in response.get("messages", [])])
-        page_token = response.get("nextPageToken")
-        if not page_token:
-            break
-    return results
-
+import base64
 
 def fetch_email_content(service, msg_id):
-    msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
-    payload = msg.get("payload", {})
-    headers = payload.get("headers", [])
-    subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
+    message = service.users().messages().get(
+        userId="me", id=msg_id, format="full"
+    ).execute()
 
-    body = ""
-    parts = payload.get("parts", [])
-    for part in parts:
-        if part.get("mimeType") == "text/html":
-            body = part["body"].get("data", "")
-            break
-    else:
-        body = payload.get("body", {}).get("data", "")
+    # Extract subject
+    headers = message["payload"].get("headers", [])
+    subject = next((h["value"] for h in headers if h["name"] == "Subject"), "")
 
-    if body:
-        missing_padding = len(body) % 4
-        if missing_padding:
-            body += "=" * (4 - missing_padding)
-        body = base64.urlsafe_b64decode(body).decode("utf-8", errors="ignore")
+    # Recursive function to extract HTML part
+    def extract_html(payload):
+        if payload.get("mimeType") == "text/html":
+            body_data = payload.get("body", {}).get("data")
+            if body_data:
+                return base64.urlsafe_b64decode(body_data).decode("utf-8", errors="ignore")
+        for part in payload.get("parts", []):
+            html = extract_html(part)
+            if html:
+                return html
+        return ""
 
-    internal_date = msg.get("internalDate")
-    received_date = pd.to_datetime(internal_date, unit="ms") if internal_date else None
-
-    return subject, body, received_date
+    body = extract_html(message["payload"])
+    return subject, body

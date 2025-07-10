@@ -1,29 +1,29 @@
 import base64
 import pandas as pd
 from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+import streamlit as st
+import json
+from tempfile import NamedTemporaryFile
+
+SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 def authenticate_gmail():
-    from google_auth_oauthlib.flow import InstalledAppFlow
-    from google.auth.transport.requests import Request
-    from google.oauth2.credentials import Credentials
-    import os
-
-    SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
     creds = None
 
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    # Load credentials.json from Streamlit secrets
+    secrets_dict = st.secrets["google_oauth"]
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
+    # Dump to a temporary file
+    with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
+        json.dump(secrets_dict, temp)
+        temp.flush()
+        flow = InstalledAppFlow.from_client_secrets_file(temp.name, SCOPES)
+        creds = flow.run_local_server(port=0)
 
     return build("gmail", "v1", credentials=creds)
+
 
 def search_zomato_emails(service):
     results = []
@@ -41,12 +41,14 @@ def search_zomato_emails(service):
             break
     return results
 
+
 def fetch_email_content(service, msg_id):
     msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
     payload = msg.get("payload", {})
     headers = payload.get("headers", [])
     subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
 
+    # Try to get HTML body
     parts = payload.get("parts", [])
     body = ""
     for part in parts:
@@ -57,7 +59,11 @@ def fetch_email_content(service, msg_id):
         body = payload.get("body", {}).get("data", "")
 
     if body:
-        body = base64.urlsafe_b64decode(body + "==").decode("utf-8", errors="ignore")
+        # Gmail base64 may be missing padding
+        missing_padding = 4 - len(body) % 4
+        if missing_padding:
+            body += "=" * missing_padding
+        body = base64.urlsafe_b64decode(body).decode("utf-8", errors="ignore")
 
     internal_date = msg.get("internalDate")
     received_date = pd.to_datetime(internal_date, unit="ms") if internal_date else None

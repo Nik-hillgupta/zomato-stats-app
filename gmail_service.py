@@ -1,26 +1,45 @@
 import base64
 import json
 import pandas as pd
+import streamlit as st
 from tempfile import NamedTemporaryFile
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-import streamlit as st
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 def authenticate_gmail():
-    # Wrap secrets from Streamlit into expected JSON structure
+    if "gmail_token" in st.session_state:
+        creds = Credentials.from_authorized_user_info(st.session_state["gmail_token"], SCOPES)
+        return build("gmail", "v1", credentials=creds)
+
     secrets_dict = dict(st.secrets["gmail"])
-    full_config = {"installed": secrets_dict}
-
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
-        json.dump(full_config, temp)
+        client_config = {
+            "installed": {
+                "client_id": secrets_dict["client_id"],
+                "client_secret": secrets_dict["client_secret"],
+                "redirect_uris": [secrets_dict["redirect_uri"]],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token"
+            }
+        }
+        json.dump(client_config, temp)
         temp.flush()
-        flow = InstalledAppFlow.from_client_secrets_file(temp.name, SCOPES)
-        creds = flow.run_local_server(port=0)  # For deployed apps; use run_local_server() in local dev
+        flow = Flow.from_client_secrets_file(temp.name, scopes=SCOPES, redirect_uri=secrets_dict["redirect_uri"])
 
+    auth_url, _ = flow.authorization_url(prompt="consent")
+    st.session_state["gmail_flow"] = flow
+    st.session_state["auth_url"] = auth_url
+    return None  # User has not yet authorized
+
+def complete_auth(code):
+    flow = st.session_state["gmail_flow"]
+    flow.fetch_token(code=code)
+    creds = flow.credentials
+    st.session_state["gmail_token"] = json.loads(creds.to_json())
     return build("gmail", "v1", credentials=creds)
-
 
 def search_zomato_emails(service):
     results = []
@@ -37,7 +56,6 @@ def search_zomato_emails(service):
         if not page_token:
             break
     return results
-
 
 def fetch_email_content(service, msg_id):
     msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()

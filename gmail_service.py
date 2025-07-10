@@ -13,7 +13,7 @@ def authenticate_gmail():
     creds = None
 
     # Load credentials.json from Streamlit secrets
-    secrets_dict = st.secrets["google_oauth"]
+    secrets_dict = st.secrets["gmail"]
 
     # Dump to a temporary file
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:

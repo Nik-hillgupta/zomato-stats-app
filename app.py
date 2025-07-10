@@ -33,7 +33,7 @@ if "code" in query_params and "gmail_token" not in st.session_state:
 if "credentials" not in st.session_state:
     st.info("🔐 Please log in with Gmail to continue.")
     if "auth_url" in st.session_state:
-        st.markdown(f"[👉 Continue Gmail Login]({st.session_state['auth_url']})", unsafe_allow_html='true')
+        st.markdown(f'<a href="{st.session_state["auth_url"]}" target="_blank">👉 Continue Gmail Login</a>', unsafe_allow_html=True)
     st.stop()
 
 # ✅ Auth successful, continue

@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_oauth import OAuth2Component
+from streamlit_oauth_authlib import OAuth2Component
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from gmail_service import search_zomato_emails, fetch_email_content

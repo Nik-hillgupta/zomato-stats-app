@@ -8,18 +8,15 @@ import streamlit as st
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 def authenticate_gmail():
-    # Use credentials stored in Streamlit secrets
-    client_config = {
-        "installed": {
-            "client_id": st.secrets["gmail"]["client_id"],
-            "client_secret": st.secrets["gmail"]["client_secret"],
-            "redirect_uris": [st.secrets["gmail"]["redirect_uri"]],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token"
-        }
-    }
-    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-    creds = flow.run_local_server(port=0)
+    creds = None
+
+    secrets_dict = dict(st.secrets["gmail"])
+    with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
+        json.dump(secrets_dict, temp)
+        temp.flush()
+        flow = InstalledAppFlow.from_client_secrets_file(temp.name, SCOPES)
+        creds = flow.run_console()  # ⬅️ Use this instead of run_local_server()
+
     return build("gmail", "v1", credentials=creds)
 
 def search_zomato_emails(service):

@@ -6,12 +6,12 @@ from bs4 import BeautifulSoup
 from zomato_parser import parse_email
 import pandas as pd
 
-# Streamlit config
+# 🔧 Streamlit config
 st.set_page_config(page_title="Zomato Order Summary", layout="centered")
 st.title("🍽️ Zomato Order Summary")
-st.markdown("Get insights on your Zomato spending directly from your Gmail.")
+st.write("🔍 App started loading...")
 
-# OAuth credentials from secrets
+# 🔑 OAuth config from secrets
 CLIENT_CONFIG = {
     "web": {
         "client_id": st.secrets["gmail"]["client_id"],
@@ -24,8 +24,9 @@ CLIENT_CONFIG = {
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-# Step 1: Authenticate
+# 🔐 Step 1: Handle OAuth login
 if "credentials" not in st.session_state:
+    st.write("🔒 User not logged in — showing auth URL...")
     flow = Flow.from_client_config(
         client_config=CLIENT_CONFIG,
         scopes=SCOPES,
@@ -34,20 +35,24 @@ if "credentials" not in st.session_state:
     auth_url, _ = flow.authorization_url(prompt="consent")
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
     st.info("Please log in with Gmail to continue.")
+
     code = st.experimental_get_query_params().get("code")
     if code:
+        st.write("📥 Code received, fetching tokens...")
         flow.fetch_token(code=code[0])
         credentials = flow.credentials
         st.session_state["credentials"] = credentials
         st.experimental_rerun()
+
     st.stop()
 
-# Step 2: Gmail API client
+# ✉️ Step 2: Fetch emails
+st.write("✅ Logged in — building Gmail service...")
 credentials = st.session_state["credentials"]
 service = build("gmail", "v1", credentials=credentials)
 
-# Step 3: Fetch and parse emails
 def get_zomato_emails(service):
+    st.write("📬 Fetching email list...")
     result = service.users().messages().list(userId="me", q="from:order@zomato.com", maxResults=100).execute()
     return result.get("messages", [])
 
@@ -63,6 +68,7 @@ def get_email_body(service, msg_id):
 
 st.markdown("🔄 Fetching your Zomato emails...")
 messages = get_zomato_emails(service)
+st.write(f"📦 {len(messages)} emails found")
 
 orders = []
 for msg in messages:
@@ -77,3 +83,4 @@ if orders:
     st.dataframe(df)
 else:
     st.warning("No Zomato orders found.")
+    st.write("😐 Either there are no orders or parser failed.")

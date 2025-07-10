@@ -22,12 +22,12 @@ CLIENT_CONFIG = {
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-# 👉 Add session reset button
+# 👉 Clear session button
 if st.button("🔁 Force Clear Session and Retry Login"):
     st.session_state.clear()
     st.rerun()
 
-# Step 1: Authenticate user
+# Step 1: Authenticate
 if "credentials" not in st.session_state:
     flow = Flow.from_client_config(
         client_config=CLIENT_CONFIG,
@@ -38,7 +38,7 @@ if "credentials" not in st.session_state:
     auth_url, _ = flow.authorization_url(
         prompt="consent",
         access_type="offline",
-        include_granted_scopes="true"  # must be a lowercase string
+        include_granted_scopes=True  # ✅ This must be a Boolean
     )
 
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
@@ -46,7 +46,7 @@ if "credentials" not in st.session_state:
 
     if code:
         try:
-            flow.fetch_token(code=code[0])
+            flow.fetch_token(code=code)  # ✅ Do not use code[0]
             credentials = flow.credentials
             st.session_state["credentials"] = credentials
             st.rerun()
@@ -84,7 +84,7 @@ def parse_email_content(content):
     except Exception:
         return None
 
-# Step 5: Display orders
+# Step 5: Display results
 st.markdown("🔄 Fetching your Zomato emails...")
 emails = get_zomato_emails(service)
 

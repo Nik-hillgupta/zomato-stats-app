@@ -1,6 +1,5 @@
 import base64
 import pandas as pd
-from googleapiclient.discovery import build
 
 def search_zomato_emails(service):
     messages = []

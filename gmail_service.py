@@ -1,45 +1,26 @@
-# gmail_service.py (Option 2 - multi-user InstalledAppFlow based auth)
-
-import os
 import base64
-import json
 import pandas as pd
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
+import streamlit as st
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-TOKEN_DIR = ".tokens"
-CREDENTIALS_FILE = "credentials.json"  # Ensure this is stored locally and NOT in secrets
 
-
-def ensure_token_dir():
-    if not os.path.exists(TOKEN_DIR):
-        os.makedirs(TOKEN_DIR)
-
-
-def authenticate_user(email_hint: str = "user"):
-    ensure_token_dir()
-    token_path = os.path.join(TOKEN_DIR, f"token_{email_hint}.json")
-    creds = None
-
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        # Save the credentials
-        with open(token_path, "w") as token_file:
-            token_file.write(creds.to_json())
-
+def authenticate_gmail():
+    # Use credentials stored in Streamlit secrets
+    client_config = {
+        "installed": {
+            "client_id": st.secrets["gmail"]["client_id"],
+            "client_secret": st.secrets["gmail"]["client_secret"],
+            "redirect_uris": [st.secrets["gmail"]["redirect_uri"]],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token"
+        }
+    }
+    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+    creds = flow.run_local_server(port=0)
     return build("gmail", "v1", credentials=creds)
-
 
 def search_zomato_emails(service):
     results = []
@@ -57,16 +38,14 @@ def search_zomato_emails(service):
             break
     return results
 
-
 def fetch_email_content(service, msg_id):
     msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
     payload = msg.get("payload", {})
     headers = payload.get("headers", [])
     subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
 
-    # Try to get HTML body
-    parts = payload.get("parts", [])
     body = ""
+    parts = payload.get("parts", [])
     for part in parts:
         if part.get("mimeType") == "text/html":
             body = part["body"].get("data", "")
@@ -75,9 +54,9 @@ def fetch_email_content(service, msg_id):
         body = payload.get("body", {}).get("data", "")
 
     if body:
-        missing_padding = 4 - len(body) % 4
+        missing_padding = len(body) % 4
         if missing_padding:
-            body += "=" * missing_padding
+            body += "=" * (4 - missing_padding)
         body = base64.urlsafe_b64decode(body).decode("utf-8", errors="ignore")
 
     internal_date = msg.get("internalDate")

@@ -11,12 +11,19 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 REDIRECT_URI = "https://zomato-stats-app-plvlspp2pgybokc5hokpfb.streamlit.app/"
 
-def authenticate_gmail():
-    if "gmail_token" in st.session_state:
+def authenticate_gmail(force_refresh=False):
+    if not force_refresh and "gmail_token" in st.session_state:
         creds = Credentials.from_authorized_user_info(st.session_state["gmail_token"], SCOPES)
         return build("gmail", "v1", credentials=creds)
 
+    # Force reset of previous sessions
+    for key in ["gmail_token", "auth_url", "gmail_flow"]:
+        st.session_state.pop(key, None)
+
     secrets_dict = dict(st.secrets["gmail"])
+
+    REDIRECT_URI = "https://zomato-stats-app-plvlspp2pgybokc5hokpfb.streamlit.app"
+
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
         client_config = {
             "web": {
@@ -36,11 +43,16 @@ def authenticate_gmail():
             redirect_uri=REDIRECT_URI
         )
 
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes="true")
+    # Always generate a fresh URL
+    auth_url, _ = flow.authorization_url(
+        prompt="consent",
+        access_type="offline",
+        include_granted_scopes="true"
+    )
+
     st.session_state["gmail_flow"] = flow
     st.session_state["auth_url"] = auth_url
     return None
-
 
 def complete_auth(code):
     flow = st.session_state.get("gmail_flow")

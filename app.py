@@ -1,14 +1,15 @@
 import streamlit as st
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from gmail_service import authenticate_gmail, search_zomato_emails, fetch_email_content
+from gmail_service import search_zomato_emails, fetch_email_content
 from zomato_parser import parse_email
 
+# Page setup
 st.set_page_config(page_title="Zomato Order Summary", layout="centered")
 st.title("🍽️ Zomato Order Summary")
 st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 
-# Load OAuth config
+# Load client secrets from Streamlit
 CLIENT_CONFIG = {
     "web": {
         "client_id": st.secrets["gmail"]["client_id"],
@@ -20,16 +21,27 @@ CLIENT_CONFIG = {
 }
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-# 🔁 Reset button
+# 🔁 Reset login session
 if st.button("🔁 Force Clear Session and Retry Login"):
     st.session_state.clear()
     st.rerun()
 
-# 🔐 Auth flow
+# 🔐 OAuth Step 1 - Authorization
 if "credentials" not in st.session_state:
-    flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0])
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes=True)
+    flow = Flow.from_client_config(
+        client_config=CLIENT_CONFIG,
+        scopes=SCOPES,
+        redirect_uri=CLIENT_CONFIG["web"]["redirect_uris"][0]
+    )
+
+    auth_url, _ = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes=True,  # ✅ MUST be Boolean, NOT string
+        prompt="consent"
+    )
+
     st.markdown(f"[Click here to log in with Gmail]({auth_url})")
+
     code = st.query_params.get("code")
     if code:
         try:
@@ -41,11 +53,11 @@ if "credentials" not in st.session_state:
             st.stop()
     st.stop()
 
-# 📨 Gmail API
+# 📨 OAuth Step 2 - Gmail API setup
 credentials = st.session_state["credentials"]
 service = build("gmail", "v1", credentials=credentials)
 
-# 📦 Fetch
+# 📬 Fetch Zomato emails
 st.info("📩 Fetching your Zomato emails...")
 messages = search_zomato_emails(service)
 orders = []
@@ -56,7 +68,7 @@ for idx, msg_id in enumerate(messages, 1):
     if parsed:
         orders.append(parsed)
 
-# ✅ Display
+# 📊 Display results
 if orders:
     st.success(f"✅ Found {len(orders)} Zomato orders.")
     st.dataframe(orders)

@@ -12,10 +12,8 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 def authenticate_gmail():
     creds = None
 
-    # Load credentials.json from Streamlit secrets
-    secrets_dict = st.secrets["gmail"]
-
-    # Dump to a temporary file
+    # Convert secrets to dict and save to temp credentials.json
+    secrets_dict = dict(st.secrets["gmail"])  # Ensure JSON-serializable
     with NamedTemporaryFile("w+", delete=False, suffix=".json") as temp:
         json.dump(secrets_dict, temp)
         temp.flush()
@@ -48,9 +46,8 @@ def fetch_email_content(service, msg_id):
     headers = payload.get("headers", [])
     subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
 
-    # Try to get HTML body
-    parts = payload.get("parts", [])
     body = ""
+    parts = payload.get("parts", [])
     for part in parts:
         if part.get("mimeType") == "text/html":
             body = part["body"].get("data", "")
@@ -59,10 +56,10 @@ def fetch_email_content(service, msg_id):
         body = payload.get("body", {}).get("data", "")
 
     if body:
-        # Gmail base64 may be missing padding
-        missing_padding = 4 - len(body) % 4
+        # Add padding to base64 if missing
+        missing_padding = len(body) % 4
         if missing_padding:
-            body += "=" * missing_padding
+            body += "=" * (4 - missing_padding)
         body = base64.urlsafe_b64decode(body).decode("utf-8", errors="ignore")
 
     internal_date = msg.get("internalDate")

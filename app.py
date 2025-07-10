@@ -15,7 +15,7 @@ st.markdown("Get insights on your Zomato spending directly from your Gmail.")
 # OAuth Setup
 client_id = st.secrets["gmail"]["client_id"]
 client_secret = st.secrets["gmail"]["client_secret"]
-redirect_uri = "https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app/"
+redirect_uri = "https://zomato-stats-app-plvlspp2pgvbokc5hokpfb.streamlit.app"
 auth_url = "https://accounts.google.com/o/oauth2/auth"
 token_url = "https://oauth2.googleapis.com/token"
 scope = "https://www.googleapis.com/auth/gmail.readonly"

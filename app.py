@@ -23,8 +23,8 @@ st.write("🔁 Redirect URI from secrets:", redirect_uri)
 oauth2 = OAuth2Component(
     client_id=client_id,
     client_secret=client_secret,
-    authorize_endpoint="https://accounts.google.com/o/oauth2/auth",  # ✅ CORRECT NAME
-    token_endpoint="https://oauth2.googleapis.com/token",            # ✅ CORRECT NAME
+    authorize_endpoint="https://accounts.google.com/o/oauth2/auth",
+    token_endpoint="https://oauth2.googleapis.com/token",
     redirect_uri=redirect_uri,
     scopes=["https://www.googleapis.com/auth/gmail.readonly"]
 )

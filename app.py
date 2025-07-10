@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 from urllib.parse import urlparse, parse_qs
+
 from gmail_service import authenticate_gmail, complete_auth, search_zomato_emails, fetch_email_content
 from zomato_parser import parse_email
 from summary import generate_summary
@@ -12,12 +13,13 @@ st.title("🍽️ Zomato Order Summary")
 st.write("Get insights on your Zomato spending directly from your Gmail.")
 st.markdown("**Log in with the email linked to your Zomato account.**")
 
-# Step 1: Trigger Gmail login
-if "gmail_flow" not in st.session_state and st.button("Click here to log in with Gmail"):
-    authenticate_gmail()
-    st.rerun()
+# Step 1: Show login button and always generate a fresh auth URL
+if st.button("Login with Gmail"):
+    authenticate_gmail(force_refresh=True)  # force fresh URL
+    st.markdown(f"[Click here to authorize Gmail access]({st.session_state['auth_url']})", unsafe_allow_html=True)
+    st.stop()
 
-# Step 2: After redirect, handle Gmail OAuth code
+# Step 2: Handle Gmail redirect with ?code=
 query_params = st.query_params
 if "code" in query_params and "gmail_token" not in st.session_state:
     try:
@@ -29,14 +31,12 @@ if "code" in query_params and "gmail_token" not in st.session_state:
         st.error(f"Authentication failed: {e}")
         st.stop()
 
-# Step 3: If auth is done, show main UI
+# Step 3: Require login before continuing
 if "credentials" not in st.session_state:
     st.info("🔐 Please log in with Gmail to continue.")
-    if "auth_url" in st.session_state:
-        st.markdown(f'<a href="{st.session_state["auth_url"]}" target="_blank">👉 Continue Gmail Login</a>', unsafe_allow_html=True)
     st.stop()
 
-# ✅ Auth successful, continue
+# ✅ Auth successful, continue to main UI
 service = st.session_state["credentials"]
 
 st.markdown("### 👤 Enter your details")

@@ -9,6 +9,8 @@ from google.oauth2.credentials import Credentials
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
+REDIRECT_URI = "https://zomato-stats-app-plvlspp2pgybokc5hokpfb.streamlit.app/"
+
 def authenticate_gmail():
     if "gmail_token" in st.session_state:
         creds = Credentials.from_authorized_user_info(st.session_state["gmail_token"], SCOPES)
@@ -22,7 +24,7 @@ def authenticate_gmail():
                 "client_secret": secrets_dict["client_secret"],
                 "auth_uri": secrets_dict["auth_uri"],
                 "token_uri": secrets_dict["token_uri"],
-                "redirect_uris": [secrets_dict["redirect_uri"]]
+                "redirect_uris": [REDIRECT_URI]
             }
         }
         json.dump(client_config, temp)
@@ -31,7 +33,7 @@ def authenticate_gmail():
         flow = Flow.from_client_secrets_file(
             temp.name,
             scopes=SCOPES,
-            redirect_uri=secrets_dict["redirect_uri"]
+            redirect_uri=REDIRECT_URI
         )
 
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes="true")

@@ -15,7 +15,7 @@ st.markdown("**Log in with the email linked to your Zomato account.**")
 # Step 1: Trigger Gmail login
 if "gmail_flow" not in st.session_state and st.button("Click here to log in with Gmail"):
     authenticate_gmail()
-    st.experimental_rerun()
+    st.rerun()
 
 # Step 2: After redirect, handle Gmail OAuth code
 query_params = st.query_params
@@ -24,7 +24,7 @@ if "code" in query_params and "gmail_token" not in st.session_state:
         service = complete_auth(query_params["code"])
         st.session_state["credentials"] = service
         st.success("✅ Successfully logged in via Gmail!")
-        st.experimental_rerun()
+        st.rerun()
     except Exception as e:
         st.error(f"Authentication failed: {e}")
         st.stop()
